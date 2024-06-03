@@ -1,4 +1,4 @@
-import tensorflow as tf
+# import tensorflow as tf
 import numpy as np
 import random 
 import warnings
@@ -13,7 +13,7 @@ from tqdm import tqdm
 from PIL import Image
 
 # Hide GPU from visible devices
-tf.config.set_visible_devices([], 'GPU')
+# tf.config.set_visible_devices([], 'GPU')
 
 
 def image_grid(imgs, rows, cols, spacing = 20):

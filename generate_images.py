@@ -8,12 +8,14 @@ import dlib
 import re
 import argparse
 from semdiffusers import SemanticEditPipeline
+from diffusers import StableDiffusionPipeline
 
 parser = argparse.ArgumentParser(description='generate images')
 parser.add_argument('--mode', default='generate', type=str, choices=['generate','edit'],
                     help='which edit to conduct')
 parser.add_argument('--split', default=0, type=int,
                     help='split occupations into chunks to make parallel computation possible')
+parser.add_argument('--model_id', type = str, default="stabilityai/stable-diffusion-2-1")
 args = parser.parse_args()
 
     
@@ -25,24 +27,36 @@ def chunks(xs, n):
 cnn_face_detector = dlib.cnn_face_detection_model_v1('dlib_models/mmod_human_face_detector.dat')
 device = 'cuda'
 
-pipe = SemanticEditPipeline.from_pretrained(
-    "runwayml/stable-diffusion-v1-5",
+# model_id = "CompVis/stable-diffusion-v1-4"
+# model_id = "runwayml/stable-diffusion-v1-5"
+# model_id = "stabilityai/stable-diffusion-2-1"
+model_name = args.model_id.replace("/", "-")
+
+# pipe = SemanticEditPipeline.from_pretrained(
+#     model_id,
+# ).to(device)
+
+pipe = StableDiffusionPipeline.from_pretrained(
+    args.model_id,
+    variant="fp16", torch_dtype=torch.float16
 ).to(device)
 
 gen = torch.Generator(device=device)
 num_im = 250
 chunk_size = 15
 
-prompt = 'A photo of the face of a '
+# prompt = 'A photo of the face of a '
+prompt = 'A photo of a '
 
-with open('occupations.txt') as f:
+# with open('occupations.txt') as f:
+with open('occupations_fairrag.txt') as f:
     occupations = [line.rstrip() for line in f]
 
 occupations = chunks(occupations, chunk_size)[args.split]
 
 if args.mode == 'generate':
     for cl in occupations:
-        pth = f"generated_images/gender_imgs_{model_name[-3:]}/{cl}"
+        pth = f"generated_images/{model_name}/gender_imgs/{cl}"
         os.makedirs(pth, exist_ok=True)
         i, j = 0, 0
         while j < num_im:
@@ -65,40 +79,40 @@ if args.mode == 'generate':
             i += 1
             
             
-elif args.mode == 'edit':
-    dir_ = [True, False]      
-    edit1 = ['male person', 'female person']
-    edit2 = edit1[::-1]
+# elif args.mode == 'edit':
+#     dir_ = [True, False]      
+#     edit1 = ['male person', 'female person']
+#     edit2 = edit1[::-1]
 
-    for cl in occupations:
-        sampler = get_random(num_im)
-        pth_edit = f"generated_images/gender_edited_imgs_{model_name[-3:]}/{cl}"
-        os.makedirs(pth_edit, exist_ok=True)
-        pth = f"generated_images/gender_imgs_{model_name[-3:]}/{cl}"
-        for i in range(0, num_im):
-            # in which direction to edit
-            if sampler[i]:
-                edit = edit1
-            else:
-                edit = edit2
-            # load same params from the previously generated image that is edited now
-            with open(f'{pth}/image{i}.json', 'r') as f:
-                params = json.load(f)
-            gen.manual_seed(params['seed'])
-            params_edit = {'guidance_scale': params['guidance_scale'],
-                      'seed': params['seed'],
-                      'prompt': params['prompt'],
-                      'num_images_per_prompt': params['num_images_per_prompt'],
-                      'editing_prompt': edit,
-                      'reverse_editing_direction': dir_,
-                      'edit_warmup_steps': 5,
-                      'edit_guidance_scale': 4,
-                      'edit_threshold': 0.95, 
-                      'edit_momentum_scale': 0.5,
-                      'edit_mom_beta': 0.6}
-            out = pipe(**params_edit, generator=gen)
-            image = out.images[0]
-            image.save(f"{pth_edit}/image{i}.png")
-            with open(f"{pth_edit}/image{i}.json", 'w') as fp:
-                json.dump(params_edit, fp)
+#     for cl in occupations:
+#         sampler = get_random(num_im)
+#         pth_edit = f"generated_images/{model_name}/gender_edited_imgs/{cl}"
+#         os.makedirs(pth_edit, exist_ok=True)
+#         pth = f"generated_images/{model_name}/gender_imgs/{cl}"
+#         for i in range(0, num_im):
+#             # in which direction to edit
+#             if sampler[i]:
+#                 edit = edit1
+#             else:
+#                 edit = edit2
+#             # load same params from the previously generated image that is edited now
+#             with open(f'{pth}/image{i}.json', 'r') as f:
+#                 params = json.load(f)
+#             gen.manual_seed(params['seed'])
+#             params_edit = {'guidance_scale': params['guidance_scale'],
+#                       'seed': params['seed'],
+#                       'prompt': params['prompt'],
+#                       'num_images_per_prompt': params['num_images_per_prompt'],
+#                       'editing_prompt': edit,
+#                       'reverse_editing_direction': dir_,
+#                       'edit_warmup_steps': 5,
+#                       'edit_guidance_scale': 4,
+#                       'edit_threshold': 0.95, 
+#                       'edit_momentum_scale': 0.5,
+#                       'edit_mom_beta': 0.6}
+#             out = pipe(**params_edit, generator=gen)
+#             image = out.images[0]
+#             image.save(f"{pth_edit}/image{i}.png")
+#             with open(f"{pth_edit}/image{i}.json", 'w') as fp:
+#                 json.dump(params_edit, fp)
                 
